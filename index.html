@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F3EDE2">
+<title>Ink Garden</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="paper"></canvas><canvas id="ink"></canvas><canvas id="live"></canvas>
+<header>
+  <b>墨庭<small>Ink Garden</small></b>
+  <span><button id="undo" aria-label="Undo last plant">↶</button><button id="snd" aria-label="Toggle sound">♪</button><i id="ess">✦ 0</i></span>
+</header>
+<div id="hint">Draw a tall stroke to grow bamboo</div>
+<div id="toast" role="status"></div>
+<nav id="species"></nav>
+<script src="main.js"></script>
+</body>
+</html>

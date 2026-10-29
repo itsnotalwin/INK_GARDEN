@@ -1,0 +1,25 @@
+:root{--paper:#F3EDE2;--ink:#1E1B18;--wash:#6B6660;--mist:#B9B2A6;--seal:#B5402C;--moss:#5C6B4C;--font:"Hiragino Mincho ProN","Noto Serif JP","Songti SC",Georgia,serif}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none;background:var(--paper);color:var(--ink);font-family:var(--font);user-select:none;-webkit-user-select:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none}
+#ink,#live{mix-blend-mode:multiply}
+header,nav{position:fixed;left:0;right:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;pointer-events:none}
+header{top:0;padding-top:calc(10px + env(safe-area-inset-top,0px))}
+nav{bottom:0;justify-content:center;gap:10px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+header b{font-weight:600;letter-spacing:.08em}
+header small{font-weight:400;color:var(--wash);font-size:.75em;margin-left:.5em;letter-spacing:.02em}
+header span{display:flex;align-items:center;gap:6px}
+header i{font-style:normal;color:var(--seal);min-width:3.4em;text-align:right}
+button{pointer-events:auto;font:inherit;color:inherit;background:rgba(243,237,226,.85);border:1px solid var(--mist);border-radius:999px;min-width:44px;min-height:44px;padding:0 14px;touch-action:manipulation}
+button:active{background:var(--mist)}
+button:focus-visible{outline:2px solid var(--seal);outline-offset:2px}
+nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:14px;min-width:84px;font-size:.78rem;line-height:1.25;padding:6px 10px}
+nav button b{font-size:1.4rem;font-weight:500}
+nav em{font-style:normal;color:var(--seal)}
+nav .lock{opacity:.6;border-style:dashed}
+#hint,#toast{position:fixed;left:50%;transform:translateX(-50%);z-index:1;pointer-events:none;color:var(--wash);text-align:center;transition:opacity .6s}
+#hint{top:42%;width:80%;font-size:1.15rem;letter-spacing:.05em;line-height:1.6}
+#hint.off{opacity:0}
+#toast{bottom:calc(104px + env(safe-area-inset-bottom,0px));opacity:0;font-size:.9rem;background:rgba(243,237,226,.92);border:1px solid var(--mist);border-radius:999px;padding:6px 14px;white-space:nowrap}
+#toast.on{opacity:1}
+@media (prefers-reduced-motion:reduce){#hint,#toast{transition:none}}
