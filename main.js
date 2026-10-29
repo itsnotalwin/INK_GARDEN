@@ -10,7 +10,7 @@ const cv={paper:$('paper'),ink:$('ink'),live:$('live')},cx={};
 for(const k in cv)cx[k]=cv[k].getContext('2d');
 const RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
 let W=0,H=0,D=1,BASE=12,cur=null,grow=[],run=0,lt=0,tt,rt,on=false,ac,ng;
-let S={ess:0,open:{bamboo:1},plants:[]};
+let S={ess:0,open:{bamboo:1},pick:'bamboo',plants:[]};
 try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const rng=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
@@ -26,23 +26,36 @@ function paper(){
 }
 
 /* Ink: stem is the stroke as painted; h (0..1) is how far the wet edge has bled */
+const hs=(i,j)=>{const x=Math.sin(i*12.9898+j*78.233)*43758.5453;return x-Math.floor(x)};
+const tone=(r,m)=>`rgba(${r()<m?'92,107,76':INK},${(.4+r()*.45).toFixed(2)})`;
 function stem(g,p,h,n){
   g.lineCap=g.lineJoin='round';
   for(let i=1;i<n;i++){
-    const a=p[i-1],b=p[i],w=b[2]*Math.min(1,.4+i*.12);
-    g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);
-    if(h>0){g.lineWidth=w*(1.2+1.1*h);g.strokeStyle=`rgba(${INK},.06)`;g.stroke()}
-    g.lineWidth=w;g.strokeStyle=`rgba(${INK},.88)`;g.stroke();
+    const a=p[i-1],b=p[i],w=b[2]*Math.min(1,.4+i*.12),dx=b[0]-a[0],dy=b[1]-a[1],d=Math.hypot(dx,dy)||1,nx=-dy/d,ny=dx/d;
+    if(h>0)for(const m of[1.15,1.45,1.9]){g.lineWidth=w*(1+(m-1)*h);g.strokeStyle=`rgba(${INK},.035)`;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke()}
+    if(i>3&&b[2]<BASE*.62){ /* fast and thin: dry-brush bristles */
+      for(let j=-1;j<=1;j++){
+        if(hs(i,j+9)<.25)continue;
+        const o=j*w*.34;g.lineWidth=w*.4;g.strokeStyle=`rgba(${INK},${(.5+hs(i,j)*.4).toFixed(2)})`;
+        g.beginPath();g.moveTo(a[0]+nx*o,a[1]+ny*o);g.lineTo(b[0]+nx*o,b[1]+ny*o);g.stroke();
+      }
+    }else{
+      g.lineWidth=w;g.strokeStyle=`rgba(${INK},${(.8+hs(i,0)*.12).toFixed(2)})`;
+      g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();
+    }
   }
+  const f=p[0];g.fillStyle=`rgba(${INK},.3)`;g.beginPath();g.arc(f[0],f[1],f[2]*.9,0,6.283);g.fill(); /* ink pools where the brush lands */
 }
-function leaf(g,x,y,a,l){
-  const ex=x+Math.cos(a)*l,ey=y+Math.sin(a)*l,mx=(x+ex)/2,my=(y+ey)/2,nx=-Math.sin(a)*l*.16,ny=Math.cos(a)*l*.16;
-  g.fillStyle=MOSS;g.beginPath();g.moveTo(x,y);g.quadraticCurveTo(mx+nx,my+ny,ex,ey);g.quadraticCurveTo(mx-nx,my-ny,x,y);g.fill();
+function leaf(g,x,y,a,l,c){
+  const ex=x+Math.cos(a)*l,ey=y+Math.sin(a)*l,mx=(x+ex)/2,my=(y+ey)/2,nx=-Math.sin(a)*l*.11,ny=Math.cos(a)*l*.11;
+  g.fillStyle=c;g.beginPath();g.moveTo(x,y);g.quadraticCurveTo(mx+nx,my+ny,ex,ey);g.quadraticCurveTo(mx-nx*.4,my-ny*.4,x,y);g.fill();
 }
 function flower(g,x,y,s,o){
-  g.fillStyle=`rgba(${SEAL},.2)`;g.strokeStyle=`rgba(${SEAL},.6)`;g.lineWidth=1;
+  g.fillStyle=`rgba(${SEAL},.16)`;g.strokeStyle=`rgba(${SEAL},.6)`;g.lineWidth=1;
   for(let i=0;i<5;i++){const a=o+i*1.2566;g.beginPath();g.arc(x+Math.cos(a)*s,y+Math.sin(a)*s,s*.8,0,6.283);g.fill();g.stroke()}
-  g.fillStyle=`rgb(${SEAL})`;g.beginPath();g.arc(x,y,s*.3,0,6.283);g.fill();
+  g.strokeStyle=`rgba(${INK},.7)`;g.lineWidth=.7;g.beginPath();
+  for(let i=0;i<6;i++){const a=o+i*1.047+.5;g.moveTo(x,y);g.lineTo(x+Math.cos(a)*s*.9,y+Math.sin(a)*s*.9)}
+  g.stroke();g.fillStyle=`rgb(${SEAL})`;g.beginPath();g.arc(x,y,s*.28,0,6.283);g.fill();
 }
 /* A plant is {k, p:[[x,y,w]...], s:seed}. Same seed => same plant, so saves replay exactly. */
 function bloom(g,P,t){
@@ -56,19 +69,24 @@ function bloom(g,P,t){
       const [q,a]=at(d),w=q[2]*.8;
       g.strokeStyle=`rgba(${INK},.8)`;g.lineWidth=2;g.beginPath();
       g.moveTo(q[0]+Math.cos(a+1.57)*w,q[1]+Math.sin(a+1.57)*w);g.lineTo(q[0]+Math.cos(a-1.57)*w,q[1]+Math.sin(a-1.57)*w);g.stroke();
-      if(d>tot*.3){leaf(g,q[0],q[1],.3+r()*.6,(22+r()*22)*e);leaf(g,q[0],q[1],Math.PI-.3-r()*.6,(22+r()*22)*e)}
+      if(d>tot*.3)for(let k=0;k<3;k++)leaf(g,q[0],q[1],(k%2?Math.PI-.25-r()*.7:.25+r()*.7)+(k===2?(r()-.5)*.5:0),(24+r()*26)*e,tone(r,.5));
     }
   }else if(P.k==='plum'){
-    for(let d=tot*.15;d<tot;d+=24+r()*28){
-      const [q,a]=at(d),ta=a+(r()<.5?-1:1)*(.6+r()*.6),tl=(18+r()*30)*e,x=q[0]+Math.cos(ta)*tl,y=q[1]+Math.sin(ta)*tl;
-      g.strokeStyle=`rgba(${INK},.75)`;g.lineWidth=1.6;g.beginPath();g.moveTo(q[0],q[1]);g.lineTo(x,y);g.stroke();
-      flower(g,x,y,(5+r()*3)*e,r()*6.28);
+    for(let d=tot*.12;d<tot;d+=22+r()*26){
+      const [q,a]=at(d),sd=r()<.5?-1:1,ta=a+sd*(.5+r()*.7),tl=(16+r()*28)*e;
+      const mx=q[0]+Math.cos(ta)*tl*.55,my=q[1]+Math.sin(ta)*tl*.55,x=mx+Math.cos(ta+sd*.5)*tl*.45,y=my+Math.sin(ta+sd*.5)*tl*.45;
+      g.strokeStyle=`rgba(${INK},.7)`;g.lineWidth=1.6;g.beginPath();g.moveTo(q[0],q[1]);g.lineTo(mx,my);g.lineTo(x,y);g.stroke();
+      if(r()<.8)flower(g,x,y,(5+r()*4)*e,r()*6.28);
+      else{g.fillStyle=`rgb(${SEAL})`;g.beginPath();g.arc(x,y,2.2*e,0,6.283);g.fill()} /* bud */
     }
   }else if(P.k==='pine'){
-    for(let d=tot*.12;d<tot;d+=30+r()*26){
-      const [q]=at(d);g.strokeStyle=MOSS;g.lineWidth=1.1;g.beginPath();
-      for(let i=0;i<16;i++){const a=-Math.PI*(.05+.9*i/15)+(r()-.5)*.25,l=(14+r()*12)*e;g.moveTo(q[0],q[1]);g.lineTo(q[0]+Math.cos(a)*l,q[1]+Math.sin(a)*l)}
-      g.stroke();
+    for(let d=tot*.1;d<tot;d+=26+r()*24){
+      const [q]=at(d);
+      for(let c=0;c<2;c++){
+        const ox=(r()-.5)*14,oy=-4-r()*8;g.strokeStyle=tone(r,.55);g.lineWidth=1.1;g.beginPath();
+        for(let i=0;i<20;i++){const a=-Math.PI*(.04+.92*i/19)+(r()-.5)*.25,l=(12+r()*14)*e;g.moveTo(q[0]+ox,q[1]+oy);g.lineTo(q[0]+ox+Math.cos(a)*l,q[1]+oy+Math.sin(a)*l)}
+        g.stroke();
+      }
     }
   }
 }
@@ -95,20 +113,13 @@ function add(e){
   const target=BASE*(1.15-Math.min(v,2)/2*.7)*pr,w=q?q[2]*.7+target*.3:BASE*.5;
   cur.push([Math.round(x),Math.round(y),+w.toFixed(1)]);lt=e.timeStamp;swish(v);
 }
-function kind(p,len){
-  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
-  for(const q of p){x0=Math.min(x0,q[0]);x1=Math.max(x1,q[0]);y0=Math.min(y0,q[1]);y1=Math.max(y1,q[1])}
-  const w=x1-x0,h=y1-y0;
-  return len<70?'ink':h>1.4*w?'bamboo':w>1.4*h?'pine':'plum';
-}
 function end(){
   if(!cur)return;
   const p=cur;cur=null;swish(0);
   if(p.length<3){kick();return}
   [.35,.6,.85].forEach((m,i)=>{const q=p[p.length-1-i];if(q)q[2]=+(q[2]*m).toFixed(1)});
   const len=plen(p),f=p[0],l=p[p.length-1],chord=Math.hypot(f[0]-l[0],f[1]-l[1]);
-  let k=kind(p,len),msg='';
-  if(k!=='ink'&&!S.open[k]){msg=`${SPECIES[k].name} unlocks at ✦${SPECIES[k].cost}`;k='ink'}
+  const k=len<70?'ink':S.pick;let msg='';
   if(k!=='ink'){const n=2+Math.round(chord/len*4)+Math.min(4,Math.round(len/120));S.ess+=n;msg=`+${n} ✦ ${SPECIES[k].name}`}
   const P={k,p,s:Math.random()*1e9|0};
   S.plants.push(P);grow.push({P,t0:performance.now()});save();ui();say(msg);kick();
@@ -122,17 +133,22 @@ c.onpointerup=c.onpointercancel=end;
 function say(m){if(!m)return;const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2200)}
 function ui(){
   $('ess').textContent='✦ '+S.ess;
-  $('species').innerHTML=Object.entries(SPECIES).map(([k,s])=>`<button data-k="${k}" class="${S.open[k]?'':'lock'}"><b>${s.zh}</b>${s.name}${S.open[k]?'':`<em>✦${s.cost}</em>`}</button>`).join('');
+  $('seal').classList.toggle('on',S.plants.length>0);
+  $('species').innerHTML=Object.entries(SPECIES).map(([k,s])=>`<button data-k="${k}" class="${S.open[k]?'':'lock'}${S.pick===k?' on':''}"><b>${s.zh}</b>${s.name}${S.open[k]?'':`<em>✦${s.cost}</em>`}</button>`).join('');
 }
 $('species').onclick=e=>{
   const b=e.target.closest('button');if(!b)return;
   const k=b.dataset.k,s=SPECIES[k];
-  if(S.open[k])return say(`Paint a ${s.how} stroke`);
-  if(S.ess<s.cost)return say(`${s.cost-S.ess} more ✦ to unlock ${s.name}`);
-  S.ess-=s.cost;S.open[k]=1;save();ui();say(`${s.name} unlocked`);
+  if(!S.open[k]){
+    if(S.ess<s.cost)return say(`${s.cost-S.ess} more ✦ to unlock ${s.name}`);
+    S.ess-=s.cost;S.open[k]=1;
+  }
+  S.pick=k;save();ui();say(`${s.name} selected`);
 };
-$('undo').onclick=()=>{const P=S.plants.pop();if(!P)return;grow=grow.filter(o=>o.P!==P);redraw();save()};
+$('undo').onclick=()=>{const P=S.plants.pop();if(!P)return;grow=grow.filter(o=>o.P!==P);redraw();save();ui()};
 $('snd').onclick=e=>{on=!on;if(on){audioInit();ac.resume()}else if(ng)ng.gain.value=0;e.currentTarget.style.opacity=on?1:.5};
+const seal=document.createElement('div');seal.id='seal';seal.textContent='墨庭';document.body.append(seal);
+$('hint').textContent='Paint a stroke to grow bamboo';
 
 /* Sound: muted until the player taps the note button */
 function audioInit(){
