@@ -1,8 +1,13 @@
 'use strict';
 const SPECIES={
   bamboo:{zh:'竹',name:'Bamboo',cost:0,how:'tall'},
-  plum:{zh:'梅',name:'Plum',cost:25,how:'slanted'},
+  plum:{zh:'梅',name:'Plum',cost:20,how:'slanted'},
   pine:{zh:'松',name:'Pine',cost:60,how:'wide'}
+};
+const BR={
+  ink:{name:'Ink',cost:0,wm:1,halo:1,dry:0,a:1},
+  wet:{name:'Wet',cost:40,wm:1.5,halo:1.5,dry:-1,a:.45,edge:1},
+  dry:{name:'Dry',cost:90,wm:1.1,halo:0,dry:1,a:1}
 };
 const KEY='inkgarden.v1',INK='30,27,24',MOSS='rgba(92,107,76,.8)',SEAL='181,64,44';
 const $=id=>document.getElementById(id);
@@ -12,6 +17,7 @@ const RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
 let petals=[],W=0,H=0,D=1,BASE=12,cur=null,grow=[],run=0,lt=0,tt,rt,on=false,ac,ng;
 let S={ess:0,open:{bamboo:1},pick:'bamboo',plants:[]};
 try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
+S.open.ink=1;if(!BR[S.brush])S.brush='ink';
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const rng=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
 const plen=p=>p.reduce((s,q,i)=>i?s+Math.hypot(q[0]-p[i-1][0],q[1]-p[i-1][1]):0,0);
@@ -44,23 +50,53 @@ function paper(){
 /* Ink: stem is the stroke as painted; h (0..1) is how far the wet edge has bled */
 const hs=(i,j)=>{const x=Math.sin(i*12.9898+j*78.233)*43758.5453;return x-Math.floor(x)};
 const tone=(r,m)=>`rgba(${r()<m?'92,107,76':INK},${(.4+r()*.45).toFixed(2)})`;
-function stem(g,p,h,n){
-  g.lineCap=g.lineJoin='round';
-  for(let i=1;i<n;i++){
-    const a=p[i-1],b=p[i],w=b[2]*Math.min(1,.4+i*.12),dx=b[0]-a[0],dy=b[1]-a[1],d=Math.hypot(dx,dy)||1,nx=-dy/d,ny=dx/d;
-    if(h>0)for(const m of[1.15,1.45,1.9]){g.lineWidth=w*(1+(m-1)*h);g.strokeStyle=`rgba(${INK},.035)`;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke()}
-    if(i>3&&b[2]<BASE*.62){ /* fast and thin: dry-brush bristles */
-      for(let j=-1;j<=1;j++){
-        if(hs(i,j+9)<.25)continue;
-        const o=j*w*.34;g.lineWidth=w*.4;g.strokeStyle=`rgba(${INK},${(.5+hs(i,j)*.4).toFixed(2)})`;
-        g.beginPath();g.moveTo(a[0]+nx*o,a[1]+ny*o);g.lineTo(b[0]+nx*o,b[1]+ny*o);g.stroke();
-      }
-    }else{
-      g.lineWidth=w;g.strokeStyle=`rgba(${INK},${(.8+hs(i,0)*.12).toFixed(2)})`;
-      g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();
+/* Strokes are drawn as one smooth ribbon per layer, so overlaps never bead or double up */
+const vn=(t,k)=>{const i=Math.floor(t),f=t-i,u=f*f*(3-2*f);return hs(i,k)*(1-u)+hs(i+1,k)*u};
+function geom(p,n){
+  const q=[],nx=[],ny=[];
+  for(let i=0;i<n;i++){const a=p[Math.max(0,i-1)],b=p[i],c=p[Math.min(n-1,i+1)];q.push([(a[0]+2*b[0]+c[0])/4,(a[1]+2*b[1]+c[1])/4,(a[2]+2*b[2]+c[2])/4])}
+  for(let i=0;i<n;i++){const a=q[Math.max(0,i-1)],c=q[Math.min(n-1,i+1)],dx=c[0]-a[0],dy=c[1]-a[1],d=Math.hypot(dx,dy)||1;nx.push(-dy/d);ny.push(dx/d)}
+  return{q,nx,ny};
+}
+function ribbon(g,q,nx,ny,wf,sc,col,edge){
+  const n=q.length,L=[],R=[];
+  for(let i=0;i<n;i++){const h=wf(i)*sc/2;L.push([q[i][0]+nx[i]*h,q[i][1]+ny[i]*h]);R.push([q[i][0]-nx[i]*h,q[i][1]-ny[i]*h])}
+  const e=n-1,he=wf(e)*sc/2,h0=wf(0)*sc/2;
+  g.beginPath();g.moveTo(L[0][0],L[0][1]);
+  for(let i=1;i<n;i++)g.quadraticCurveTo(L[i-1][0],L[i-1][1],(L[i-1][0]+L[i][0])/2,(L[i-1][1]+L[i][1])/2);
+  g.lineTo(L[e][0],L[e][1]);
+  g.quadraticCurveTo(q[e][0]+ny[e]*he*1.4,q[e][1]-nx[e]*he*1.4,R[e][0],R[e][1]);
+  for(let i=e-1;i>=0;i--)g.quadraticCurveTo(R[i+1][0],R[i+1][1],(R[i+1][0]+R[i][0])/2,(R[i+1][1]+R[i][1])/2);
+  g.lineTo(R[0][0],R[0][1]);
+  g.quadraticCurveTo(q[0][0]-ny[0]*h0*1.4,q[0][1]+nx[0]*h0*1.4,L[0][0],L[0][1]);
+  g.closePath();g.fillStyle=col;g.fill();
+  if(edge){g.strokeStyle=`rgba(${INK},.3)`;g.lineWidth=1.2;g.lineJoin='round';g.stroke()}
+}
+function bristles(g,q,nx,ny,wf,B){
+  const n=q.length;g.lineCap=g.lineJoin='round';
+  for(let k=0;k<14;k++){
+    const off=k/13-.5;g.lineWidth=Math.max(1,BASE*(.1+.08*hs(k,3))*B.wm);g.strokeStyle=`rgba(${INK},${(.45+hs(k,5)*.5).toFixed(2)})`;
+    let on=false;g.beginPath();
+    for(let i=0;i<n;i++){
+      if(vn(i/7,k)<.3){on=false;continue}
+      const w=wf(i)*off,x=q[i][0]+nx[i]*w,y=q[i][1]+ny[i]*w;
+      if(on)g.lineTo(x,y);else{g.moveTo(x,y);on=true}
     }
+    g.stroke();
   }
-  const f=p[0];g.fillStyle=`rgba(${INK},.3)`;g.beginPath();g.arc(f[0],f[1],f[2]*.9,0,6.283);g.fill(); /* ink pools where the brush lands */
+}
+/* Ink bleed is one soft shadow pass that widens as the stroke dries */
+function stem(g,p,h,n,bk){
+  if(n<2)return;
+  const B=BR[bk]||BR.ink,{q,nx,ny}=geom(p,n);
+  const wf=i=>q[i][2]*Math.min(1,.35+i*.13)*Math.min(1,.2+(n-1-i)*.14)*(.88+.24*vn(i/6,1));
+  if(B.dry>0){ribbon(g,q,nx,ny,wf,.85,`rgba(${INK},.26)`);bristles(g,q,nx,ny,wf,B);return}
+  if(h>0&&B.halo){g.shadowColor=`rgba(${INK},.6)`;g.shadowBlur=(3+16*h*B.halo)*D}
+  let col=`rgba(${INK},${(.78*B.a).toFixed(2)})`;
+  if(B.edge){const e=n-1,gr=g.createLinearGradient(q[0][0],q[0][1],q[e][0],q[e][1]);gr.addColorStop(0,`rgba(${INK},.62)`);gr.addColorStop(1,`rgba(${INK},.2)`);col=gr} /* wet wash fades as the brush empties */
+  ribbon(g,q,nx,ny,wf,1,col,B.edge);
+  g.shadowColor='transparent';g.shadowBlur=0;
+  if(!B.edge)ribbon(g,q,nx,ny,wf,.55,`rgba(${INK},${(.38*B.a).toFixed(2)})`);
 }
 function leaf(g,x,y,a,l,c){
   const ex=x+Math.cos(a)*l,ey=y+Math.sin(a)*l,mx=(x+ex)/2,my=(y+ey)/2,nx=-Math.sin(a)*l*.11,ny=Math.cos(a)*l*.11;
@@ -79,7 +115,7 @@ function bloom(g,P,t){
   for(let i=1;i<p.length;i++)L[i]=L[i-1]+Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]);
   const tot=L[L.length-1];
   const at=d=>{let i=1;while(i<p.length-1&&L[i]<d)i++;return[p[i],Math.atan2(p[i][1]-p[i-1][1],p[i][0]-p[i-1][0])]};
-  stem(g,p,e,p.length);
+  stem(g,p,e,p.length,P.b);
   if(P.k==='plum'||P.k==='pine')for(let d=10;d<tot;d+=9+r()*14){const [q]=at(d),o=(r()-.5)*q[2]*1.3;g.fillStyle=`rgba(${INK},${(.4+r()*.4).toFixed(2)})`;g.beginPath();g.arc(q[0]+o,q[1]+(r()-.5)*q[2],.8+r()*1.3,0,6.283);g.fill()} /* moss dots on the bark */
   if(P.k==='bamboo'){
     for(let d=34;d<tot;d+=34+r()*10){
@@ -112,7 +148,7 @@ function redraw(){cx.ink.clearRect(0,0,W,H);S.plants.forEach(P=>bloom(cx.ink,P,1
 /* Render loop: runs only while painting or blooming */
 function frame(now){
   const g=cx.live;g.clearRect(0,0,W,H);
-  if(cur&&cur.length>1)stem(g,cur,0,cur.length);
+  if(cur&&cur.length>1)stem(g,cur,0,cur.length,S.brush);
   grow=grow.filter(o=>{
     const t=RM?1:Math.min(1,(now-o.t0)/1600);
     if(t>=1){bloom(cx.ink,o.P,1);if(o.P.k!=='ink')drip();if(o.P.k==='plum'&&!RM)fall(o.P,now);return false}
@@ -133,18 +169,17 @@ function add(e){
   const x=e.clientX,y=e.clientY,q=cur[cur.length-1],d=q?Math.hypot(x-q[0],y-q[1]):0;
   if(q&&d<3)return;
   const v=q?d/Math.max(1,e.timeStamp-lt):0,pr=e.pointerType==='pen'?Math.max(.35,e.pressure*1.6):1;
-  const target=BASE*(1.15-Math.min(v,2)/2*.7)*pr,w=q?q[2]*.7+target*.3:BASE*.5;
+  const bw=BASE*BR[S.brush].wm,target=bw*(1.15-Math.min(v,2)/2*.7)*pr,w=q?q[2]*.7+target*.3:bw*.5;
   cur.push([Math.round(x),Math.round(y),+w.toFixed(1)]);lt=e.timeStamp;swish(v);
 }
 function end(){
   if(!cur)return;
   const p=cur;cur=null;swish(0);
   if(p.length<3){kick();return}
-  [.35,.6,.85].forEach((m,i)=>{const q=p[p.length-1-i];if(q)q[2]=+(q[2]*m).toFixed(1)});
   const len=plen(p),f=p[0],l=p[p.length-1],chord=Math.hypot(f[0]-l[0],f[1]-l[1]);
   const k=len<70?'ink':S.pick;let msg='';
-  if(k!=='ink'){const n=2+Math.round(chord/len*4)+Math.min(4,Math.round(len/120));S.ess+=n;msg=`+${n} ✦ ${SPECIES[k].name}`}
-  const P={k,p,s:Math.random()*1e9|0};
+  if(k!=='ink'){const n=3+Math.round(chord/len*4)+Math.min(5,Math.round(len/100));S.ess+=n;msg=`+${n} ✦ ${SPECIES[k].name}`}
+  const P={k,p,s:Math.random()*1e9|0,b:S.brush};
   S.plants.push(P);grow.push({P,t0:performance.now()});save();ui();say(msg);kick();
 }
 const c=cv.live;
@@ -154,19 +189,20 @@ c.onpointerup=c.onpointercancel=end;
 
 /* UI */
 function say(m){if(!m)return;const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2200)}
+const chip=(k,s,on,br)=>`<button data-${br?'b':'k'}="${k}" class="${S.open[k]?'':'lock'}${on?' on':''}">${br?'':`<b>${s.zh}</b>`}${s.name}${S.open[k]?'':`<em>✦${s.cost}</em>`}</button>`;
 function ui(){
   $('ess').textContent='✦ '+S.ess;
   $('seal').classList.toggle('on',S.plants.length>0);
-  $('species').innerHTML=Object.entries(SPECIES).map(([k,s])=>`<button data-k="${k}" class="${S.open[k]?'':'lock'}${S.pick===k?' on':''}"><b>${s.zh}</b>${s.name}${S.open[k]?'':`<em>✦${s.cost}</em>`}</button>`).join('');
+  $('species').innerHTML='<div class="br">'+Object.entries(BR).map(([k,s])=>chip(k,s,S.brush===k,1)).join('')+'</div>'+Object.entries(SPECIES).map(([k,s])=>chip(k,s,S.pick===k)).join('');
 }
 $('species').onclick=e=>{
-  const b=e.target.closest('button');if(!b)return;
-  const k=b.dataset.k,s=SPECIES[k];
+  const x=e.target.closest('button');if(!x)return;
+  const b=x.dataset.b,k=b||x.dataset.k,s=b?BR[b]:SPECIES[k];
   if(!S.open[k]){
     if(S.ess<s.cost)return say(`${s.cost-S.ess} more ✦ to unlock ${s.name}`);
     S.ess-=s.cost;S.open[k]=1;
   }
-  S.pick=k;save();ui();say(`${s.name} selected`);
+  S[b?'brush':'pick']=k;save();ui();say(`${s.name} selected`);
 };
 $('undo').onclick=()=>{const P=S.plants.pop();if(!P)return;grow=grow.filter(o=>o.P!==P);redraw();save();ui()};
 $('snd').onclick=e=>{on=!on;if(on){audioInit();ac.resume()}else if(ng)ng.gain.value=0;e.currentTarget.style.opacity=on?1:.5};
