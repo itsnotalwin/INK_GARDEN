@@ -9,20 +9,36 @@ const $=id=>document.getElementById(id);
 const cv={paper:$('paper'),ink:$('ink'),live:$('live')},cx={};
 for(const k in cv)cx[k]=cv[k].getContext('2d');
 const RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
-let W=0,H=0,D=1,BASE=12,cur=null,grow=[],run=0,lt=0,tt,rt,on=false,ac,ng;
+let petals=[],W=0,H=0,D=1,BASE=12,cur=null,grow=[],run=0,lt=0,tt,rt,on=false,ac,ng;
 let S={ess:0,open:{bamboo:1},pick:'bamboo',plants:[]};
 try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const rng=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
 const plen=p=>p.reduce((s,q,i)=>i?s+Math.hypot(q[0]-p[i-1][0],q[1]-p[i-1][1]):0,0);
 
-/* Paper: seeded speckle and fibres, drawn once per resize */
+/* Paper: mottled washi, a faint moon and misty ridges, then speckle and fibres; seeded so it never shifts */
 function paper(){
-  const g=cx.paper,w=cv.paper.width,h=cv.paper.height,r=rng(7);
+  const g=cx.paper,w=cv.paper.width,h=cv.paper.height,r=rng(7),M=Math.max(w,h);
   g.setTransform(1,0,0,1,0,0);g.fillStyle='#F3EDE2';g.fillRect(0,0,w,h);
+  for(let i=0;i<14;i++){
+    const x=r()*w,y=r()*h,q=g.createRadialGradient(x,y,0,x,y,(.25+r()*.4)*M);
+    q.addColorStop(0,`rgba(${r()<.5?'150,120,70':'255,255,250'},${(.03+r()*.04).toFixed(3)})`);q.addColorStop(1,'rgba(243,237,226,0)');
+    g.fillStyle=q;g.fillRect(0,0,w,h);
+  }
+  g.beginPath();g.arc(w*.72,h*.2,Math.min(w,h)*.11,0,6.283);g.fillStyle='rgba(107,102,96,.07)';g.fill();g.strokeStyle='rgba(107,102,96,.12)';g.lineWidth=D;g.stroke();
+  for(let k=0;k<3;k++){
+    const base=h*(.62+k*.07),amp=h*(.12-k*.025);
+    g.fillStyle=`rgba(107,102,96,${[.09,.13,.18][k]})`;g.beginPath();g.moveTo(0,h);g.lineTo(0,base);
+    for(let x=0;x<w;x+=w/8)g.quadraticCurveTo(x+w/16,base-amp*(.3+r()*.9),x+w/8,base-amp*r()*.4);
+    g.lineTo(w,h);g.fill();
+    const m=g.createLinearGradient(0,base-amp*.2,0,base+amp*.9);m.addColorStop(0,'rgba(243,237,226,0)');m.addColorStop(1,'rgba(243,237,226,.88)');
+    g.fillStyle=m;g.fillRect(0,base-amp,w,h);
+  }
   for(let i=0;i<w*h/180;i++){g.fillStyle=`rgba(90,70,40,${r()*.05})`;g.fillRect(r()*w,r()*h,1+r()*2*D,1+r()*2*D)}
   g.lineWidth=.6*D;
   for(let i=0;i<w*h/2500;i++){const x=r()*w,y=r()*h,a=r()*6.28,l=(6+r()*18)*D;g.strokeStyle=`rgba(120,100,70,${.04+r()*.06})`;g.beginPath();g.moveTo(x,y);g.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l);g.stroke()}
+  const v=g.createRadialGradient(w/2,h/2,Math.min(w,h)*.5,w/2,h/2,M*.8);v.addColorStop(0,'rgba(90,70,40,0)');v.addColorStop(1,'rgba(90,70,40,.1)');
+  g.fillStyle=v;g.fillRect(0,0,w,h);
 }
 
 /* Ink: stem is the stroke as painted; h (0..1) is how far the wet edge has bled */
@@ -64,6 +80,7 @@ function bloom(g,P,t){
   const tot=L[L.length-1];
   const at=d=>{let i=1;while(i<p.length-1&&L[i]<d)i++;return[p[i],Math.atan2(p[i][1]-p[i-1][1],p[i][0]-p[i-1][0])]};
   stem(g,p,e,p.length);
+  if(P.k==='plum'||P.k==='pine')for(let d=10;d<tot;d+=9+r()*14){const [q]=at(d),o=(r()-.5)*q[2]*1.3;g.fillStyle=`rgba(${INK},${(.4+r()*.4).toFixed(2)})`;g.beginPath();g.arc(q[0]+o,q[1]+(r()-.5)*q[2],.8+r()*1.3,0,6.283);g.fill()} /* moss dots on the bark */
   if(P.k==='bamboo'){
     for(let d=34;d<tot;d+=34+r()*10){
       const [q,a]=at(d),w=q[2]*.8;
@@ -98,11 +115,17 @@ function frame(now){
   if(cur&&cur.length>1)stem(g,cur,0,cur.length);
   grow=grow.filter(o=>{
     const t=RM?1:Math.min(1,(now-o.t0)/1600);
-    if(t>=1){bloom(cx.ink,o.P,1);if(o.P.k!=='ink')drip();return false}
+    if(t>=1){bloom(cx.ink,o.P,1);if(o.P.k!=='ink')drip();if(o.P.k==='plum'&&!RM)fall(o.P,now);return false}
     bloom(g,o.P,t);return true;
   });
-  run=cur||grow.length?requestAnimationFrame(frame):0;
+  petals=petals.filter(q=>{
+    const a=(now-q.t0)/q.life;if(a>=1)return false;if(a<0)return true;
+    const x=q.x+Math.sin(a*6+q.ph)*14+a*q.dx,y=q.y+a*q.dy;
+    g.fillStyle=`rgba(${SEAL},${(.55*(1-a)).toFixed(2)})`;g.beginPath();g.ellipse(x,y,3.2,1.8,a*8+q.ph,0,6.283);g.fill();return true;
+  });
+  run=cur||grow.length||petals.length?requestAnimationFrame(frame):0;
 }
+function fall(P,now){for(let i=0;i<7;i++){const q=P.p[Math.floor(Math.random()*P.p.length)];petals.push({x:q[0],y:q[1],dx:(Math.random()-.5)*60,dy:90+Math.random()*80,ph:Math.random()*6,life:2600+Math.random()*1400,t0:now+Math.random()*600})}}
 const kick=()=>{if(!run)run=requestAnimationFrame(frame)};
 
 /* Input */
