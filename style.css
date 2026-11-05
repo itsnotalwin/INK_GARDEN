@@ -32,8 +32,11 @@ nav .on em{color:inherit}
 nav{flex-wrap:wrap}
 .br button{flex-direction:row;gap:6px;min-width:0;min-height:38px;padding:0 14px;border-radius:999px;font-size:.78rem}
 #mist{position:fixed;inset:0;pointer-events:none;overflow:hidden}
-#mist i{position:absolute;left:-30%;width:160%;height:34%;background:radial-gradient(ellipse at center,rgba(243,237,226,.8),rgba(243,237,226,0) 68%);animation:drift 46s ease-in-out infinite alternate;will-change:transform}
+#mist i{position:absolute;left:-30%;width:160%;height:34%;background:radial-gradient(ellipse at center,rgba(var(--pr),.8),rgba(var(--pr),0) 68%);animation:drift 46s ease-in-out infinite alternate;will-change:transform}
 #mist i:nth-child(1){top:50%}
 #mist i:nth-child(2){top:64%;animation-duration:62s;animation-direction:alternate-reverse}
 @keyframes drift{from{transform:translateX(-7%)}to{transform:translateX(7%)}}
 @media (prefers-reduced-motion:reduce){#mist i{animation:none}}
+:root{--pr:243,237,226}
+header small{display:none}
+#seal.on{pointer-events:auto;cursor:pointer}
